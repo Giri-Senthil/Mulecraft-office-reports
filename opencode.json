@@ -1,0 +1,65 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+ 
+  "provider": {
+    "sarvam": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Sarvam AI",
+ 
+      "options": {
+        "baseURL": "https://api.sarvam.ai/v2"
+      },
+ 
+      "models": {
+        "glm5.2": {
+          "name": "GLM 5.2",
+          "limit": {
+            "context": 524288,
+            "output": 32768
+          }
+        },
+ 
+        "deepseekv4-flash": {
+          "name": "DeepSeek V4 Flash",
+          "limit": {
+            "context": 1048576,
+            "output": 32768
+          }
+        },
+ 
+        "sarvam-105b": {
+          "name": "Sarvam 105B",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+ 
+        "glm5.3": {
+          "name": "GLM 5.3",
+          "limit": {
+            "context": 524288,
+            "output": 32768
+          }
+        },
+ 
+        "glm5.3-flash": {
+          "name": "GLM 5.3 Flash",
+          "limit": {
+            "context": 524288,
+            "output": 32768
+          }
+        },
+ 
+        "gemma4": {
+          "name": "Gemma 4",
+          "limit": {
+            "context": 524288,
+            "output": 32768
+          }
+        }
+      }
+    }
+  }
+}
+ 
