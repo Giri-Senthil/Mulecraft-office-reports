@@ -1,33 +1,88 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getEmployee, getByEmployee, employmentDetails, attendance, leaves, employees, wages, statutory } from '../data/mock.js'
+import { supabase } from '../lib/supabase.js'
+
+function SectionCard({ title, description, children }) {
+  return (
+    <div className="card detail-card section-card">
+      <h2>{title}</h2>
+      {description && <p className="muted employment-desc">{description}</p>}
+      {children}
+    </div>
+  )
+}
+
+function DetailCard({ title, description, children }) {
+  return (
+    <div className="detail-card-pair">
+      <div className="card detail-card-details">
+        <h2>{title}</h2>
+        {children}
+      </div>
+      <div className="card detail-card-desc">
+        <p>{description}</p>
+      </div>
+    </div>
+  )
+}
 
 export default function EmployeeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [rows, setRows] = useState(employees)
+  const [employee, setEmployee] = useState(null)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
-  const [empRows, setEmpRows] = useState(employmentDetails)
-  const [editingEmp, setEditingEmp] = useState(false)
-  const [empForm, setEmpForm] = useState({})
+  const [wageRows, setWageRows] = useState([])
+  const [statRows, setStatRows] = useState([])
+  const [attendanceRows, setAttendanceRows] = useState([])
+  const [leaveRows, setLeaveRows] = useState([])
   const [editingKey, setEditingKey] = useState(null)
   const [editValue, setEditValue] = useState('')
-  const [editingEmpKey, setEditingEmpKey] = useState(null)
-  const [editEmpValue, setEditEmpValue] = useState('')
-  const [showMoreInfo, setShowMoreInfo] = useState(false)
-  const [wageRows, setWageRows] = useState(wages)
-  const [statRows, setStatRows] = useState(statutory)
+  const [editingWageKey, setEditingWageKey] = useState(null)
+  const [editWageValue, setEditWageValue] = useState('')
+  const [editingStatKey, setEditingStatKey] = useState(null)
+  const [editStatValue, setEditStatValue] = useState('')
   const [wageForm, setWageForm] = useState({ employee_id: id, effective_from: '', basic_pay: '', hra: '', allowances: '', deductions: '', gross_pay: '', net_pay: '', pay_frequency: 'monthly' })
-  const [statForm, setStatForm] = useState({ employee_id: id, pan: '', aadhaar: '', uan: '', pf_number: '', esi_number: '', bank_name: '', bank_account: '', ifsc: '', tax_regime: 'new' })
+  const [statForm, setStatForm] = useState({ pan: '', aadhaar: '', uan: '', pf_number: '', esi_number: '', bank_name: '', bank_account: '', ifsc: '', tax_regime: 'new' })
+  const [removalReason, setRemovalReason] = useState('')
+  const [showRemoveModal, setShowRemoveModal] = useState(false)
+  const [showInfoModal, setShowInfoModal] = useState(false)
+  const [infoMessage, setInfoMessage] = useState('')
 
-  const employee = getEmployee(id) || rows.find((r) => r.id === id)
+  useEffect(() => {
+    ;(async () => {
+      const [empRes, wageRes, attRes, leaveRes] = await Promise.all([
+        supabase.from('employees').select('*').eq('id', id).single(),
+        supabase.from('wages').select('*').eq('employee_id', id),
+        supabase.from('attendance').select('*').eq('employee_id', id).order('date', { ascending: false }).limit(3),
+        supabase.from('leaves').select('*').eq('employee_id', id).order('start_date', { ascending: false }).limit(10),
+      ])
+      if (empRes.error) console.error(empRes.error)
+      else setEmployee(empRes.data)
+      if (wageRes.error) console.error(wageRes.error)
+      else setWageRows(wageRes.data)
+      if (attRes.error) console.error(attRes.error)
+      else setAttendanceRows(attRes.data)
+      if (leaveRes.error) console.error(leaveRes.error)
+      else setLeaveRows(leaveRes.data)
+    })()
+  }, [id])
+
+  useEffect(() => {
+    if (!employee) return
+    ;(async () => {
+      const { data, error } = await supabase.from('statutory').select('*').eq('employee_code', employee.employee_code)
+      if (error) console.error(error)
+      else setStatRows(data)
+    })()
+  }, [employee])
 
   if (!employee) return <div className="center-screen">Employee not found</div>
 
-  const empEmployment = getByEmployee(empRows, id)
-  const empAttendance = getByEmployee(attendance, id).slice(-3)
-  const empLeaves = getByEmployee(leaves, id).slice(0, 10)
+  const empAttendance = attendanceRows
+  const empLeaves = leaveRows
+  const empWages = wageRows
+  const empStatutory = statRows
 
   const details = [
     { key: 'Employee ID', value: employee.employee_code },
@@ -39,17 +94,41 @@ export default function EmployeeDetail() {
     { key: 'Designation', value: employee.designation },
     { key: 'Status', value: employee.status },
     { key: 'Date of Joining', value: employee.date_of_joining },
+    { key: 'Gender', value: employee.gender },
+    { key: 'Date of Birth', value: employee.date_of_birth },
+    { key: 'Father Name', value: employee.father_name },
+    { key: 'Present Address', value: employee.present_address },
+    { key: 'Permanent Address', value: employee.permanent_address },
+    { key: 'Shift Number', value: employee.shift_number },
+    { key: 'Start of Work', value: employee.start_of_work },
+    { key: 'Rest Interval', value: employee.rest_interval },
+    { key: 'Work Ends', value: employee.work_ends },
+    { key: 'Class of Work', value: employee.class_of_work },
   ]
 
-  const employment = empEmployment[0] || {}
-  const employmentDetailsList = [
-    { key: 'Employment Type', value: employment.employment_type },
-    { key: 'Contract Start', value: employment.contract_start },
-    { key: 'Contract End', value: employment.contract_end },
-    { key: 'Probation End', value: employment.probation_end },
-    { key: 'Work Location', value: employment.work_location },
-    { key: 'Manager Name', value: employment.manager_name },
-    { key: 'Notes', value: employment.notes },
+  const wage = empWages[0] || {}
+  const wageDetailsList = [
+    { key: 'Effective From', value: wage.effective_from },
+    { key: 'Basic Pay', value: wage.basic_pay },
+    { key: 'HRA', value: wage.hra },
+    { key: 'Allowances', value: wage.allowances },
+    { key: 'Deductions', value: wage.deductions },
+    { key: 'Gross Pay', value: wage.gross_pay },
+    { key: 'Net Pay', value: wage.net_pay },
+    { key: 'Pay Frequency', value: wage.pay_frequency },
+  ]
+
+  const stat = empStatutory[0] || {}
+  const statutoryDetailsList = [
+    { key: 'PAN', value: stat.pan },
+    { key: 'Aadhaar', value: stat.aadhaar },
+    { key: 'UAN', value: stat.uan },
+    { key: 'PF Number', value: stat.pf_number },
+    { key: 'ESI Number', value: stat.esi_number },
+    { key: 'Bank Name', value: stat.bank_name },
+    { key: 'Bank Account', value: stat.bank_account },
+    { key: 'IFSC', value: stat.ifsc },
+    { key: 'Tax Regime', value: stat.tax_regime },
   ]
 
   function startEdit() {
@@ -71,49 +150,28 @@ export default function EmployeeDetail() {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    setRows(rows.map((r) => (r.id === employee.id ? { ...r, ...form } : r)))
+    const { error } = await supabase.from('employees').update(form).eq('id', employee.id)
+    if (error) console.error(error)
+    else setEmployee({ ...employee, ...form })
     setEditing(false)
   }
 
-  function handleRemove() {
-    if (!confirm('Delete this employee?')) return
-    setRows(rows.filter((r) => r.id !== employee.id))
-    navigate('/employees')
-  }
-
-  function startEditEmp() {
-    setEmpForm({
-      employment_type: employment.employment_type || '',
-      contract_start: employment.contract_start || '',
-      contract_end: employment.contract_end || '',
-      probation_end: employment.probation_end || '',
-      work_location: employment.work_location || '',
-      manager_name: employment.manager_name || '',
-      notes: employment.notes || '',
+  async function handleRemove() {
+    if (!removalReason.trim()) return
+    const name = `${employee.first_name} ${employee.last_name}`
+    await supabase.from('monthly_employee_movement').insert({
+      employee_name: name,
+      designation: employee.designation || '',
+      reason: removalReason.trim(),
+      event_type: 'removed',
+      event_date: new Date().toISOString().slice(0, 10),
     })
-    setEditingEmp(true)
-  }
-
-  function handleEmpChange(e) {
-    setEmpForm({ ...empForm, [e.target.name]: e.target.value })
-  }
-
-  function handleEmpSubmit(e) {
-    e.preventDefault()
-    if (empEmployment.length > 0) {
-      setEmpRows(empRows.map((r) => (r.id === empEmployment[0].id ? { ...r, ...empForm } : r)))
-    } else {
-      setEmpRows([{ ...empForm, id: `ed${Date.now()}`, employee_id: employee.id }, ...empRows])
-    }
-    setEditingEmp(false)
-  }
-
-  function handleEmpRemove() {
-    if (!confirm('Delete employment details?')) return
-    setEmpRows(empRows.filter((r) => r.id !== empEmployment[0].id))
-    setEditingEmp(false)
+    await supabase.from('employees').delete().eq('id', employee.id)
+    setShowRemoveModal(false)
+    setRemovalReason('')
+    navigate('/employees')
   }
 
   function startEditRow(key) {
@@ -121,21 +179,38 @@ export default function EmployeeDetail() {
     setEditValue(employee[key] || '')
   }
 
-  function saveEditRow() {
-    setRows(rows.map((r) => (r.id === employee.id ? { ...r, [editingKey]: editValue } : r)))
+  async function saveEditRow() {
+    const { error } = await supabase.from('employees').update({ [editingKey]: editValue }).eq('id', employee.id)
+    if (error) console.error(error)
+    else setEmployee({ ...employee, [editingKey]: editValue })
     setEditingKey(null)
     setEditValue('')
   }
 
-  function startEditEmpRow(key) {
-    setEditingEmpKey(key)
-    setEditEmpValue(employment[key] || '')
+  function startEditWageRow(key) {
+    setEditingWageKey(key)
+    setEditWageValue(wage[key] ?? '')
   }
 
-  function saveEditEmpRow() {
-    setEmpRows(empRows.map((r) => (r.id === empEmployment[0].id ? { ...r, [editingEmpKey]: editEmpValue } : r)))
-    setEditingEmpKey(null)
-    setEditEmpValue('')
+  async function saveEditWageRow() {
+    const { error } = await supabase.from('wages').update({ [editingWageKey]: editWageValue }).eq('id', empWages[0].id)
+    if (error) console.error(error)
+    else setWageRows(wageRows.map((r) => (r.id === empWages[0].id ? { ...r, [editingWageKey]: editWageValue } : r)))
+    setEditingWageKey(null)
+    setEditWageValue('')
+  }
+
+  function startEditStatRow(key) {
+    setEditingStatKey(key)
+    setEditStatValue(stat[key] ?? '')
+  }
+
+  async function saveEditStatRow() {
+    const { error } = await supabase.from('statutory').update({ [editingStatKey]: editStatValue }).eq('id', empStatutory[0].id)
+    if (error) console.error(error)
+    else setStatRows(statRows.map((r) => (r.id === empStatutory[0].id ? { ...r, [editingStatKey]: editStatValue } : r)))
+    setEditingStatKey(null)
+    setEditStatValue('')
   }
 
   return (
@@ -143,10 +218,86 @@ export default function EmployeeDetail() {
       <div className="detail-title-row">
         <h1 className="detail-title">{employee.employee_code}</h1>
         <div className="detail-actions">
-          <button className="detail-add-info" onClick={() => { setShowMoreInfo(true); setTimeout(() => document.getElementById('more-info-section')?.scrollIntoView({ behavior: 'smooth' }), 100) }}>Add More Info</button>
-          <button className="link danger detail-remove" onClick={handleRemove}>Remove Employee</button>
+          {empWages.length === 0 || empStatutory.length === 0 ? (
+            <button className="primary detail-add-info" onClick={() => setShowInfoModal(true)}>Add More Info</button>
+          ) : null}
+          <button className="link danger detail-remove" onClick={() => setShowRemoveModal(true)}>Remove Employee</button>
         </div>
       </div>
+
+      {showInfoModal && (
+        <div className="modal-overlay" onClick={() => setShowInfoModal(false)}>
+          <div className="modal add-employee-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Add More Info</h2>
+            <div className="add-employee-forms">
+              {wageRows.length === 0 && (
+              <form id="wage-form" className="card form-grid add-form" onSubmit={async (e) => { e.preventDefault(); const { data, error } = await supabase.from('wages').insert([{ ...wageForm, employee_id: employee.id, employee_code: employee.employee_code }]).select(); if (error) console.error(error); else { setWageRows(data); setWageForm({ ...wageForm, effective_from: '', basic_pay: '', hra: '', allowances: '', deductions: '', gross_pay: '', net_pay: '', pay_frequency: 'monthly' }); setInfoMessage('Wage details added') } }}>
+                <h2>Wages</h2>
+                <label>Effective From *<input name="effective_from" type="date" placeholder="Effective From" value={wageForm.effective_from} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} required /></label>
+                <label>Basic Pay<input name="basic_pay" type="number" step="0.01" min="0" placeholder="Basic Pay" value={wageForm.basic_pay} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} /></label>
+                <label>HRA<input name="hra" type="number" step="0.01" min="0" placeholder="HRA" value={wageForm.hra} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} /></label>
+                <label>Allowances<input name="allowances" type="number" step="0.01" min="0" placeholder="Allowances" value={wageForm.allowances} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} /></label>
+                <label>Deductions<input name="deductions" type="number" step="0.01" min="0" placeholder="Deductions" value={wageForm.deductions} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} /></label>
+                <label>Gross Pay<input name="gross_pay" type="number" step="0.01" min="0" placeholder="Gross Pay" value={wageForm.gross_pay} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} /></label>
+                <label>Net Pay<input name="net_pay" type="number" step="0.01" min="0" placeholder="Net Pay" value={wageForm.net_pay} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} /></label>
+                <label>Pay Frequency
+                <select name="pay_frequency" value={wageForm.pay_frequency} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })}>
+                  <option value="monthly">Monthly</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Bi-weekly</option>
+                </select>
+                </label>
+              </form>
+              )}
+
+              {statRows.length === 0 && (
+              <form id="stat-form" className="card form-grid add-form" onSubmit={async (e) => { e.preventDefault(); const { data, error } = await supabase.from('statutory').insert([{ ...statForm, employee_code: employee.employee_code }]).select(); if (error) console.error(error); else { setStatRows(data); setStatForm({ ...statForm, pan: '', aadhaar: '', uan: '', pf_number: '', esi_number: '', bank_name: '', bank_account: '', ifsc: '', tax_regime: 'new' }); setInfoMessage('Statutory details added') } }}>
+                <h2>Statutory & Compliance</h2>
+                <label>PAN<input name="pan" placeholder="PAN" value={statForm.pan} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} /></label>
+                <label>Aadhaar<input name="aadhaar" placeholder="Aadhaar" value={statForm.aadhaar} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} /></label>
+                <label>UAN<input name="uan" placeholder="UAN" value={statForm.uan} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} /></label>
+                <label>PF Number<input name="pf_number" placeholder="PF Number" value={statForm.pf_number} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} /></label>
+                <label>ESI Number<input name="esi_number" placeholder="ESI Number" value={statForm.esi_number} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} /></label>
+                <label>Bank Name<input name="bank_name" placeholder="Bank Name" value={statForm.bank_name} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} /></label>
+                <label>Bank Account<input name="bank_account" placeholder="Bank Account" value={statForm.bank_account} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} /></label>
+                <label>IFSC<input name="ifsc" placeholder="IFSC" value={statForm.ifsc} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} /></label>
+                <label>Tax Regime
+                <select name="tax_regime" value={statForm.tax_regime} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })}>
+                  <option value="new">New Regime</option>
+                  <option value="old">Old Regime</option>
+                </select>
+                </label>
+              </form>
+              )}
+            </div>
+            <div className="modal-actions">
+              {infoMessage && <span className="completed-text info-message">{infoMessage}</span>}
+              <button className="link" type="button" onClick={() => setShowInfoModal(false)}>Cancel</button>
+              <button className="primary" type="button" onClick={() => { document.getElementById('wage-form')?.requestSubmit(); document.getElementById('stat-form')?.requestSubmit(); setTimeout(() => setShowInfoModal(false), 300) }}>Add</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRemoveModal && (
+        <div className="modal-overlay" onClick={() => setShowRemoveModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Remove {employee.first_name} {employee.last_name}</h2>
+            <p className="muted">Please provide a reason for removing this employee. It will be stored in the monthly employee movement records.</p>
+            <textarea
+              className="removal-reason"
+              placeholder="Reason for removal *"
+              value={removalReason}
+              onChange={(e) => setRemovalReason(e.target.value)}
+              rows={3}
+            />
+            <div className="modal-actions">
+              <button className="link" onClick={() => { setShowRemoveModal(false); setRemovalReason('') }}>Cancel</button>
+              <button className="primary danger" disabled={!removalReason.trim()} onClick={handleRemove}>Remove Employee</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing ? (
         <form className="card detail-card form-grid" onSubmit={handleSubmit}>
@@ -169,30 +320,81 @@ export default function EmployeeDetail() {
         </form>
       ) : (
         <>
-          <div className="detail-columns">
-            <div className="detail-col">
-              <div className="card detail-card">
-                <div className="kv-list">
-                  {details.map((d) => (
-                    <div key={d.key} className="kv-item clickable" onClick={() => startEditRow(d.key === 'Employee ID' ? 'employee_code' : d.key.toLowerCase().replace(/ /g, '_'))}>
-                      {editingKey === (d.key === 'Employee ID' ? 'employee_code' : d.key.toLowerCase().replace(/ /g, '_')) ? (
-                        <>
-                          <input value={editValue} onChange={(e) => setEditValue(e.target.value)} autoFocus />
-                          <button className="primary" onClick={(e) => { e.stopPropagation(); saveEditRow() }}>Save</button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="muted">{d.key}</span>
-                          <b>{d.value || '—'}</b>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
+          <div className="detail-cards-stack">
+            <DetailCard title="Employee Details" description={`${employee.first_name} ${employee.last_name} (${employee.employee_code}) is a ${employee.designation || '—'} in the ${employee.department || '—'} department, ${employee.status} since ${employee.date_of_joining || '—'}.`}>
+              <div className="kv-list">
+                {details.map((d) => (
+                  <div key={d.key} className="kv-item clickable" onClick={() => startEditRow(d.key === 'Employee ID' ? 'employee_code' : d.key.toLowerCase().replace(/ /g, '_'))}>
+                    {editingKey === (d.key === 'Employee ID' ? 'employee_code' : d.key.toLowerCase().replace(/ /g, '_')) ? (
+                      <>
+                        <input value={editValue} onChange={(e) => setEditValue(e.target.value)} autoFocus />
+                        <button className="primary" onClick={(e) => { e.stopPropagation(); saveEditRow() }}>Save</button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="muted">{d.key}</span>
+                        <b>{d.value || '—'}</b>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
+            </DetailCard>
 
-              <h2>Last 3 Days Attendance</h2>
-              <div className="card detail-card">
+            {empStatutory.length > 0 && (
+            <DetailCard
+              title="Statutory & Compliance"
+              description={`${employee.first_name} ${employee.last_name} holds PAN ${stat.pan || '—'} and Aadhaar ${stat.aadhaar || '—'}, with PF ${stat.pf_number || '—'} and ESI ${stat.esi_number || '—'}. Salary is credited to ${stat.bank_name || '—'} account ${stat.bank_account || '—'} (IFSC ${stat.ifsc || '—'}) under the ${stat.tax_regime || '—'} tax regime.`}
+            >
+              <div className="kv-list">
+                {statutoryDetailsList.map((d) => (
+                  <div key={d.key} className="kv-item clickable" onClick={() => startEditStatRow(d.key.toLowerCase().replace(/ /g, '_'))}>
+                    {editingStatKey === d.key.toLowerCase().replace(/ /g, '_') ? (
+                      <>
+                        <input value={editStatValue} onChange={(e) => setEditStatValue(e.target.value)} autoFocus />
+                        <button className="primary" onClick={(e) => { e.stopPropagation(); saveEditStatRow() }}>Save</button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="muted">{d.key}</span>
+                        <b>{d.value || '—'}</b>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </DetailCard>
+            )}
+
+            {empWages.length > 0 && (
+            <DetailCard
+              title="Wages"
+              description={`${employee.first_name} ${employee.last_name} earns a gross pay of ${wage.gross_pay ? `₹${wage.gross_pay}` : '—'} with a net pay of ${wage.net_pay ? `₹${wage.net_pay}` : '—'} effective from ${wage.effective_from || '—'} on a ${wage.pay_frequency || '—'} basis.`}
+            >
+              <div className="kv-list">
+                {wageDetailsList.map((d) => (
+                  <div key={d.key} className="kv-item clickable" onClick={() => startEditWageRow(d.key.toLowerCase().replace(/ /g, '_'))}>
+                    {editingWageKey === d.key.toLowerCase().replace(/ /g, '_') ? (
+                      <>
+                        <input value={editWageValue} onChange={(e) => setEditWageValue(e.target.value)} autoFocus />
+                        <button className="primary" onClick={(e) => { e.stopPropagation(); saveEditWageRow() }}>Save</button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="muted">{d.key}</span>
+                        <b>{d.value ?? '—'}</b>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </DetailCard>
+            )}
+          </div>
+
+          <div className="detail-columns attendance-below">
+            <div className="detail-col">
+              <SectionCard title="Last 3 Days Attendance">
                 {empAttendance.length === 0 ? <p className="muted">No attendance records.</p> : (
                   <div className="kv-list">
                     {empAttendance.map((a) => (
@@ -203,97 +405,9 @@ export default function EmployeeDetail() {
                     ))}
                   </div>
                 )}
-              </div>
-            </div>
-
-            <div className="detail-col">
-              <h2>Employment Details</h2>
-              <p className="muted employment-desc">
-                {employee.first_name} {employee.last_name} is employed as {employment.employment_type || '—'} from {employment.contract_start || '—'} at {employment.work_location || '—'} under {employment.manager_name || '—'}.
-              </p>
-              {editingEmp ? (
-                <form className="card detail-card form-grid" onSubmit={handleEmpSubmit}>
-                  <select name="employment_type" value={empForm.employment_type} onChange={handleEmpChange}>
-                    <option value="">Select Type</option>
-                    <option value="full-time">Full-time</option>
-                    <option value="part-time">Part-time</option>
-                    <option value="contract">Contract</option>
-                    <option value="intern">Intern</option>
-                  </select>
-                  <input name="contract_start" type="date" placeholder="Contract Start" value={empForm.contract_start} onChange={handleEmpChange} />
-                  <input name="contract_end" type="date" placeholder="Contract End" value={empForm.contract_end} onChange={handleEmpChange} />
-                  <input name="probation_end" type="date" placeholder="Probation End" value={empForm.probation_end} onChange={handleEmpChange} />
-                  <input name="work_location" placeholder="Work Location" value={empForm.work_location} onChange={handleEmpChange} />
-                  <input name="manager_name" placeholder="Manager Name" value={empForm.manager_name} onChange={handleEmpChange} />
-                  <input name="notes" placeholder="Notes" value={empForm.notes} onChange={handleEmpChange} />
-                  <div className="actions">
-                    <button className="primary" type="submit">Save Changes</button>
-                    <button className="link" type="button" onClick={() => setEditingEmp(false)}>Cancel</button>
-                  </div>
-                </form>
-              ) : (
-                <div className="card detail-card">
-                  {empEmployment.length === 0 ? <p className="muted">No employment details.</p> : (
-                    <div className="kv-list">
-                      {employmentDetailsList.map((d) => (
-                        <div key={d.key} className="kv-item clickable" onClick={() => startEditEmpRow(d.key.toLowerCase().replace(/ /g, '_'))}>
-                          {editingEmpKey === d.key.toLowerCase().replace(/ /g, '_') ? (
-                            <>
-                              <input value={editEmpValue} onChange={(e) => setEditEmpValue(e.target.value)} autoFocus />
-                              <button className="primary" onClick={(e) => { e.stopPropagation(); saveEditEmpRow() }}>Save</button>
-                            </>
-                          ) : (
-                            <>
-                              <span className="muted">{d.key}</span>
-                              <b>{d.value || '—'}</b>
-                            </>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+              </SectionCard>
             </div>
           </div>
-
-          {showMoreInfo && (
-            <div className="more-info" id="more-info-section">
-              <h2>Wages</h2>
-              <form className="card form-grid" onSubmit={(e) => { e.preventDefault(); setWageRows([{ ...wageForm, id: `w${Date.now()}` }, ...wageRows]); setWageForm({ ...wageForm, effective_from: '', basic_pay: '', hra: '', allowances: '', deductions: '', gross_pay: '', net_pay: '', pay_frequency: 'monthly' }) }}>
-                <input name="effective_from" type="date" placeholder="Effective From" value={wageForm.effective_from} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} required />
-                <input name="basic_pay" type="number" step="0.01" min="0" placeholder="Basic Pay" value={wageForm.basic_pay} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} />
-                <input name="hra" type="number" step="0.01" min="0" placeholder="HRA" value={wageForm.hra} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} />
-                <input name="allowances" type="number" step="0.01" min="0" placeholder="Allowances" value={wageForm.allowances} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} />
-                <input name="deductions" type="number" step="0.01" min="0" placeholder="Deductions" value={wageForm.deductions} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} />
-                <input name="gross_pay" type="number" step="0.01" min="0" placeholder="Gross Pay" value={wageForm.gross_pay} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} />
-                <input name="net_pay" type="number" step="0.01" min="0" placeholder="Net Pay" value={wageForm.net_pay} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })} />
-                <select name="pay_frequency" value={wageForm.pay_frequency} onChange={(e) => setWageForm({ ...wageForm, [e.target.name]: e.target.value })}>
-                  <option value="monthly">Monthly</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="biweekly">Bi-weekly</option>
-                </select>
-                <button className="primary" type="submit">Add Wage</button>
-              </form>
-
-              <h2>Statutory & Compliance</h2>
-              <form className="card form-grid" onSubmit={(e) => { e.preventDefault(); setStatRows([{ ...statForm, id: `s${Date.now()}` }, ...statRows]); setStatForm({ ...statForm, pan: '', aadhaar: '', uan: '', pf_number: '', esi_number: '', bank_name: '', bank_account: '', ifsc: '', tax_regime: 'new' }) }}>
-                <input name="pan" placeholder="PAN" value={statForm.pan} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} />
-                <input name="aadhaar" placeholder="Aadhaar" value={statForm.aadhaar} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} />
-                <input name="uan" placeholder="UAN" value={statForm.uan} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} />
-                <input name="pf_number" placeholder="PF Number" value={statForm.pf_number} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} />
-                <input name="esi_number" placeholder="ESI Number" value={statForm.esi_number} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} />
-                <input name="bank_name" placeholder="Bank Name" value={statForm.bank_name} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} />
-                <input name="bank_account" placeholder="Bank Account" value={statForm.bank_account} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} />
-                <input name="ifsc" placeholder="IFSC" value={statForm.ifsc} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })} />
-                <select name="tax_regime" value={statForm.tax_regime} onChange={(e) => setStatForm({ ...statForm, [e.target.name]: e.target.value })}>
-                  <option value="new">New Regime</option>
-                  <option value="old">Old Regime</option>
-                </select>
-                <button className="primary" type="submit">Add Record</button>
-              </form>
-            </div>
-          )}
         </>
       )}
     </div>

@@ -1,23 +1,41 @@
-import { useState } from 'react'
-import { employees, wages } from '../data/mock.js'
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase.js'
 
 const emptyForm = { employee_id: '', effective_from: '', basic_pay: '', hra: '', allowances: '', deductions: '', gross_pay: '', net_pay: '', pay_frequency: 'monthly' }
 
 export default function Wages() {
-  const [rows, setRows] = useState(wages)
+  const [rows, setRows] = useState([])
+  const [employees, setEmployees] = useState([])
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState(null)
+
+  useEffect(() => {
+    ;(async () => {
+      const [wageRes, empRes] = await Promise.all([
+        supabase.from('wages').select('*'),
+        supabase.from('employees').select('*'),
+      ])
+      if (wageRes.error) console.error(wageRes.error)
+      else setRows(wageRes.data)
+      if (empRes.error) console.error(empRes.error)
+      else setEmployees(empRes.data)
+    })()
+  }, [])
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (editingId) {
-      setRows(rows.map((r) => (r.id === editingId ? { ...r, ...form } : r)))
+      const { error } = await supabase.from('wages').update(form).eq('id', editingId)
+      if (error) console.error(error)
+      else setRows(rows.map((r) => (r.id === editingId ? { ...r, ...form } : r)))
     } else {
-      setRows([{ ...form, id: `w${Date.now()}` }, ...rows])
+      const { data, error } = await supabase.from('wages').insert([form]).select()
+      if (error) console.error(error)
+      else setRows([...data, ...rows])
     }
     setForm(emptyForm)
     setEditingId(null)
@@ -38,9 +56,11 @@ export default function Wages() {
     })
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     if (!confirm('Delete this wage record?')) return
-    setRows(rows.filter((r) => r.id !== id))
+    const { error } = await supabase.from('wages').delete().eq('id', id)
+    if (error) console.error(error)
+    else setRows(rows.filter((r) => r.id !== id))
   }
 
   function empName(id) {
