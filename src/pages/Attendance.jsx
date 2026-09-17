@@ -169,12 +169,7 @@ export default function Attendance() {
     if ((e.target.name === 'start_date' || e.target.name === 'end_date') && next.start_date && next.end_date) {
       const start = new Date(next.start_date + 'T00:00:00')
       const end = new Date(next.end_date + 'T00:00:00')
-      let count = 0
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const dow = d.getDay()
-        if (dow !== 0 && dow !== 6) count++
-      }
-      next.days = count
+      next.days = Math.round((end - start) / 86400000) + 1
     }
     setLeaveForm(next)
   }
@@ -260,7 +255,7 @@ export default function Attendance() {
     d.setDate(monday.getDate() + i)
     return d.toISOString().slice(0, 10)
   })
-  const dates = Object.keys(grouped).sort().reverse().filter((d) => (filterDate ? d === filterDate : true))
+  const dates = filterDate ? [filterDate] : weekDates.filter((d) => d <= today.toISOString().slice(0, 10))
   const allActiveDone = employees.filter((e) => e.status === 'active').every((e) => rows.some((r) => r.employee_id === e.id && r.date === form.date))
   const currentMonth = new Date().toISOString().slice(0, 7)
   const monthLeaves = leaveMonthFilter
@@ -342,7 +337,7 @@ export default function Attendance() {
 
           {dates.length === 0 && <p className="muted">No attendance records.</p>}
           {dates.map((date) => {
-            const records = grouped[date]
+            const records = grouped[date] || []
             const present = records.filter((r) => r.status === 'present')
             const absent = records.filter((r) => r.status === 'absent')
             const halfDay = records.filter((r) => r.status === 'half-day')
